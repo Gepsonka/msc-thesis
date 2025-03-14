@@ -27,7 +27,7 @@ def read_keys_from_hex(private_key_text):
 
 
 
-def calculate_chameleon_hash(m0, r0, x: ecdsa.SigningKey):
+def calculate_chameleon_hash(m0, r0, x: ecdsa.SigningKey) -> ecdsa.ellipticcurve.PointJacobi:
   '''
   Calculates chameleon hash from the given parameters
 
@@ -35,12 +35,11 @@ def calculate_chameleon_hash(m0, r0, x: ecdsa.SigningKey):
   m0: 256 bit random number
   r0: 256 bi random number
   x: private key
-  G: generator element
 
   Returns:
   Chameleon hash
   '''
-  privkey_int = int.from_bytes(x.to_string(), "big")
+  privkey_int = x.privkey.secret_multiplier 
   point = (m0 + r0 * privkey_int) * CURVE.generator
   return point
 
@@ -53,8 +52,10 @@ def calculate_message_format(m: bytes):
   Returns:
   Message bytes in the format: m || timestamp || H(m || timestamp)
   '''
-  timestamp_byte_length = (int(time.time()).bit_length() + 7) // 8 or 1
-  timestamp_bytes = int(time.time()).to_bytes(timestamp_byte_length, 'big')
+  timestamp = int(time.time())
+
+  timestamp_byte_length = (timestamp.bit_length() + 7) // 8 or 1
+  timestamp_bytes = timestamp.to_bytes(timestamp_byte_length, 'big')
 
   timestamp_message_hash = hashlib.sha256(m + timestamp_bytes).digest()
 
@@ -81,7 +82,7 @@ def m_encryption(m_: bytes, client_private_key: ecdsa.SigningKey, server_public_
   ciphertext = cipher.encrypt(padded_data)
 
   common_public_key = server_public_key.pubkey.point * client_private_key.privkey.secret_multiplier
-  common_public_key_x_bytes = common_public_key.x().to_bytes(32, 'big')
+  common_public_key_x_bytes = common_public_key.x().to_bytes(32, "big")
   common_public_key_delta_xor = bytes(a ^ b for a, b in zip(random_delta_bytes, common_public_key_x_bytes))
 
   return ciphertext + common_public_key_delta_xor
@@ -108,7 +109,7 @@ def r_encryption(converted_message: bytes, m0: int, r0: int, client_private_key:
   r__ = r0 - m_minus_m0 * private_key_mult_inverse
 
   r__byte_length = (r__.bit_length() + 7) // 8 or 1 
-  r__bytes = byte_data = r__.to_bytes(r__byte_length, byteorder='big', signed=True)
+  r__bytes = r__.to_bytes(r__byte_length, byteorder='big', signed=True)
 
   return r__bytes
 
@@ -119,5 +120,13 @@ def chameleon_hash_challange(m__: bytes, r__: bytes, client_public_key: ecdsa.Ve
 
   challange_result_point = m__int * CURVE.generator + r__int * client_public_key.pubkey.point
 
+  print("m__int: ", m__int)
+  print("r__int: ", r__int)
+  print("challange_result_point.x(): ", challange_result_point.x())
+  print("challange_result_point.y(): ", challange_result_point.y())
+
+
   return challange_result_point.x() == chameleon_hash.x() and challange_result_point.y() == chameleon_hash.y()
+
+
 
